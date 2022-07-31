@@ -1,0 +1,17 @@
+---
+- name: Test Module
+  hosts: hx_connect
+  connection: local
+  gather_facts: no
+  tasks:
+    - name: Test Module
+      hyperflex_datastore:
+        validate_certs: False
+        hx_connect_ip: "{{ hx_connect_ip }}"
+        hx_connect_user: "{{ hx_connect_user }}"
+        hx_connect_password: "{{ hx_connect_password }}"
+        mode: Create
+        name: "SomeDatastore-1"
+        volumeSize: 1024
+        sizeDescriptor: "GB"
+        blockSize: 4K

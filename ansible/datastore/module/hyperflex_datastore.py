@@ -92,6 +92,7 @@ EXAMPLES = r'''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url
+import re,json
 
 
 
@@ -104,7 +105,8 @@ def run_module():
         name=dict(type="str", required=True),
         volumeSize=dict(type="int", required=False),
         sizeDescriptor=dict(type="str",required=False,choices=['GB','TB'], default='TB'),
-        blockSize=dict(type="str",required=False, choices=['4K','8K'], default='4K')
+        blockSize=dict(type="str",required=False, choices=['4K','8K'], default='4K'),
+        validate_certs=dict(type='bool',required=False, default=True)
     )
     result = dict(
         changed=False,
@@ -119,18 +121,90 @@ def run_module():
 
     if module.check_mode:
         module.exit_json(**result)
+    
+    #######################################################################################
+    # Start HyperFlex tasks here. 
+    #######################################################################################
 
-    result['authSuccess'] = "Maybe"
+    #Authentication 
+    auth = {
+        "username": module.params['hx_connect_user'],
+        "password": module.params['hx_connect_password'],
+        "client_id": "HxGuiClient",
+        "client_secret": "Sunnyvale",
+        "redirect_uri": "https://localhost:8080/aaa/redirect"
+    }
+
+    required_fields = {
+        "name": module.params['name'],
+        "hx_connect_ip": module.params['hx_connect_ip']
+    }
+
+    if (module.params['mode']=='Create'):
+        required_fields.update({"volumeSize": module.params['volumeSize']})
+        required_fields.update({"sizeDescriptor": module.params['sizeDescriptor']})
+        required_fields.update({"blockSize": module.params['blockSize']})
+        result['createDrive']=hyperFlex(auth,module).createDatastore(required_fields)
+    elif (module.params['mode']=='Delete'):
+        result['deleteDrive']=hyperFlex(auth,module).deleteDatastore(required_fields)
+    elif(module.params['mode']=='Verify'):
+        result['verifyDrive']=hyperFlex(auth,module).verifyDatastore(required_fields)
+
+#    result['authSuccess'] = hyperFlex(auth, module.params['hx_connect_ip']).createDatastore(module)
     result['driveID'] = 'Defined in the future'
 
     module.exit_json(**result)
 
 class hyperFlex():
-    def __init__(self):
+    def __init__(self, auth, module):
+        self.module = module
+        self.headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'   
+        }
+        self.auth = auth
         return
 
-    def getData():
+    def getData(self, hx_url, method, data):
+        response, info = fetch_url(module=self.module, url=hx_url, headers=self.headers, method=method,data=data)
+        #TODO If result is not 200, exit out with error... We are done... 
+        return response, info
+    
+    def getToken(self,hx_connect_ip):
+        hx_url = f"https://{hx_connect_ip}/aaa/v1/auth?grant_type=password"
+        #print(hx_url)
+        returned_data, info = self.getData(hx_url=hx_url, data=json.dumps(self.auth), method="POST")
+        #TODO Ensure you got a token back by checking return result.
+        self.headers["Authorization"] = f"Bearer {json.loads(returned_data.read())['access_token']}"
+        return  self.headers["Authorization"]
+    
+    def createDatastore(self, required_fields):        
+        ####### Six steps #######
+        # 1) Get authorization token
+        token_request_raw = self.getToken(required_fields['hx_connect_ip'])
+        # 2) check token
+        # 3) Check for existing datastore of the same name
+        verify_request_raw = self.verifyDatastore(required_fields)
+        # 4) Create Datastore if it does not already exist
+        # 5) verify that the creation work.
+        # 6) return properties or fail the procedure
+        return f"{verify_request_raw}"
+    def deleteDatastore(self,required_fields):
+        # 1) Get authorization token
+        # 2) check token
+        # 3) Check for existing datastore of the same name
+        # 4) Check for VMs in the data store (Must be zero or we will not delete it)
+        # 5) Delete Datastore if it exists and has no systems in it.
         return
+    
+    def verifyDatastore(self,required_fields):
+        # 1) Get authorization token
+        if (self.headers.get('Authorization') is None):
+            token = self.getToken(required_fields['hx_connect_ip'])
+        # 2) Check for existing datastore of the same name
+        hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores"
+        returned_data, info = self.getData(hx_url=hx_url, data=None, method='GET')
+        return json.loads(returned_data.read())
 
 def main():
     run_module()
