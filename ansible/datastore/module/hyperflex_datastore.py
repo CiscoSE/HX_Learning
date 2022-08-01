@@ -91,7 +91,7 @@ EXAMPLES = r'''
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.urls import fetch_url
+from ansible.module_utils.urls import fetch_url, to_text
 import re,json
 
 
@@ -148,10 +148,7 @@ def run_module():
     elif (module.params['mode']=='Delete'):
         result['deleteDrive']=hyperFlex(auth,module).deleteDatastore(required_fields)
     elif(module.params['mode']=='Verify'):
-        result['verifyDrive']=hyperFlex(auth,module).verifyDatastore(required_fields)
-
-#    result['authSuccess'] = hyperFlex(auth, module.params['hx_connect_ip']).createDatastore(module)
-    result['driveID'] = 'Defined in the future'
+        result['verifyDrive']=hyperFlex(auth,module).verifyDatastore(required_fields,returnExtended=True)
 
     module.exit_json(**result)
 
@@ -171,40 +168,92 @@ class hyperFlex():
         return response, info
     
     def getToken(self,hx_connect_ip):
+        tokenStatus = False
         hx_url = f"https://{hx_connect_ip}/aaa/v1/auth?grant_type=password"
         #print(hx_url)
         returned_data, info = self.getData(hx_url=hx_url, data=json.dumps(self.auth), method="POST")
-        #TODO Ensure you got a token back by checking return result.
-        self.headers["Authorization"] = f"Bearer {json.loads(returned_data.read())['access_token']}"
-        return  self.headers["Authorization"]
+        if (re.match(r'2..',str(info['status'])) and returned_data is not None):
+            self.headers["Authorization"] = f"Bearer {json.loads(returned_data.read())['access_token']}"
+        else:
+            self.module.fail_json(msg="Failed to get token",changed=False, err=str(info))
+
+        # We just add the token to the existing header to be used for getting the status of a store, and creating or deleting. 
+        # We do not hand the token back to ansible, so a fresh token must be used for other tasks.
+
+        return
     
+    def dataBlockSize(self, blocksize, volumesize, sizescale="GB"):
+        response={}
+        if sizescale=="GB":
+            response.update({'size': int(volumesize) * 2**30})
+        elif sizescale=="TB":
+            response.update({'size': int(volumesize) * 2**40})
+        else:
+            self.module.fail_json(msg="Improper selection of size scale. Must be GB or TB")
+        if blocksize == "4K":
+            response.update({'dataBlockSize': 4096})
+        elif blocksize == "8K":
+            response.update({'dataBlockSize': 8192})
+        return response
+            
+
     def createDatastore(self, required_fields):        
         ####### Six steps #######
         # 1) Get authorization token
-        token_request_raw = self.getToken(required_fields['hx_connect_ip'])
-        # 2) check token
-        # 3) Check for existing datastore of the same name
-        verify_request_raw = self.verifyDatastore(required_fields)
-        # 4) Create Datastore if it does not already exist
-        # 5) verify that the creation work.
-        # 6) return properties or fail the procedure
-        return f"{verify_request_raw}"
+        self.getToken(required_fields['hx_connect_ip'])
+        if not 'Authorization' in self.headers.keys():
+            self.module.fail_json(msg="No key issues, and we cannot continue without it.")
+
+        datastoreExists = self.verifyDatastore(required_fields)
+        if (datastoreExists == True):
+            self.module.fail_json(msg="Datastore Exists. Cannot create a datastore with the same Name")    
+        hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores"
+        datastoreProperties = self.dataBlockSize(
+            blocksize=required_fields['blockSize'], 
+            volumesize=required_fields['volumeSize'],
+            sizescale=required_fields['sizeDescriptor']
+            )
+        datastoreProperties.update({'name': required_fields['name']})
+        result, info = self.getData(data=json.dumps(datastoreProperties),method='POST',hx_url=hx_url)
+        return json.loads(result.read())
+
     def deleteDatastore(self,required_fields):
         # 1) Get authorization token
+        if (self.headers.get('Authorization') is None):
+            self.getToken(required_fields['hx_connect_ip'])
         # 2) check token
         # 3) Check for existing datastore of the same name
+        datastoreExists = self.verifyDatastore(required_fields=required_fields)
+        if (datastoreExists == False):
+            self.module.fail_json(msg="We cannot delete that which does not exist")
+        if (self.targetDatastore is not None):
+            hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores/{self.targetDatastore['entityRef']['id']}"
+            deleteResult, info=self.getData(hx_url=hx_url,method='DELETE',data=None)
+            return info
+        else:
+            self.module.fail_json(msg="The the database was found, we did not receive enough details to delete the datastore - This is a bug")
         # 4) Check for VMs in the data store (Must be zero or we will not delete it)
+        
         # 5) Delete Datastore if it exists and has no systems in it.
-        return
+        return hx_url
     
-    def verifyDatastore(self,required_fields):
+    def verifyDatastore(self,required_fields, returnExtended=False):
         # 1) Get authorization token
         if (self.headers.get('Authorization') is None):
-            token = self.getToken(required_fields['hx_connect_ip'])
+            self.getToken(required_fields['hx_connect_ip'])
         # 2) Check for existing datastore of the same name
         hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores"
         returned_data, info = self.getData(hx_url=hx_url, data=None, method='GET')
-        return json.loads(returned_data.read())
+        #for item in returned_data:
+        for item in json.loads(returned_data.read()):
+            if item['entityRef']['name'] == required_fields['name']:
+                self.targetDatastore = item
+                #Allows us to return all of the JSON properties to ansible to be used for debug output or decision making.
+                if returnExtended == True:
+                    return item
+                else:
+                    return True
+        return False
 
 def main():
     run_module()

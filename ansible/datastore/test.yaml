@@ -1,17 +1,25 @@
 ---
-- name: Test Module
+- name: HyperFlex Datastore Management Module
   hosts: hx_connect
   connection: local
   gather_facts: no
+  vars: 
+    mode: "Verify"
   tasks:
-    - name: Test Module
+    - name: "Datastore {{ mode }} task"
       hyperflex_datastore:
         validate_certs: False
         hx_connect_ip: "{{ hx_connect_ip }}"
         hx_connect_user: "{{ hx_connect_user }}"
         hx_connect_password: "{{ hx_connect_password }}"
-        mode: Create
-        name: "SomeDatastore-1"
+        mode: "{{ mode }}"
+        name: "Demo-Datastore"
         volumeSize: 1024
         sizeDescriptor: "GB"
         blockSize: 4K
+      register: datastoreOutput
+    - name: Output Storage Values
+      debug:
+        msg: "{{ datastoreOutput }}"
+      when: mode == "Verify"
+      
