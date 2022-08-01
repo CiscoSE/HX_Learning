@@ -15,12 +15,13 @@ Your inventory file should have the following entries in it saved as .ini file. 
 10.0.0.01	hx_connect_ip='10.0.0.1' hx_connect_user='administrator@vsphere.local' hx_connect_password='YourPasswordHere'
 ```
 
-For those purposes of these directions, we assume the file is named private.inventory.ini and is in the same directory as the test.yaml playbook.
+For the purposes of these directions, we assume the file is named **private.inventory.ini** and is in the same directory as the **test.yaml** playbook.
 
 ### Verify the test.yaml file
 Make sure that the test.yaml file reflects your intentions before running it. Do not assume that the version in github is safe to run. We recommend you verify the following fields:
 
-- mode: The mode variable can be Create, Verify or Delete.
+- mode: The mode variable can be **Create**, **Verify** or **Delete**.
+  - The only safe mode is **Verify**
 - name: The name attribute should be something that doesn't exist in our environment if you will be using Create or Delete in the test.yaml
 
 ### Copy the hyperflex_datastore.py file to the "configured module search path"
@@ -36,10 +37,10 @@ ansible 2.10.8
   python version = 3.10.4 (main, Jun 29 2022, 12:14:53) [GCC 11.2.0]
 ```
 
-In this example you need to copy the hyperflex_datastore.py file to the /usr/share/ansible/plugins/modules directory.
+In this example you need to copy the **hyperflex_datastore.py** file to the **/usr/share/ansible/plugins/modules** directory. Your directory may be different. Only the paths listed under **configured module search path** are valid locations for this file.
 
 ### To run the demo
-From the same directory as the test.yaml file, run the following command:
+From the same directory as the **test.yaml** file, run the following command:
 ```
 ansible-playbook -i private.inventory.ini test.yaml
 ```
