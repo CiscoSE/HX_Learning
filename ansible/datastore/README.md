@@ -20,9 +20,9 @@ For the purposes of these directions, we assume the file is named **private.inve
 ### Verify the test.yaml file
 Make sure that the test.yaml file reflects your intentions before running it. Do not assume that the version in github is safe to run. We recommend you verify the following fields:
 
-- mode: The mode variable can be **Create**, **Verify** or **Delete**.
+- **mode**: The mode variable can be **Create**, **Verify** or **Delete**.
   - The only safe mode is **Verify**
-- name: The name attribute should be something that doesn't exist in our environment if you will be using Create or Delete in the test.yaml
+- **name**: The **name** attribute should be something that doesn't exist in your environment if you will be using Create or Delete in the test.yaml
 
 ### Copy the hyperflex_datastore.py file to the "configured module search path"
 The configured module search path can be found by running the following ansible command:
