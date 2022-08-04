@@ -246,8 +246,8 @@ class hyperFlex():
         # 2) Check for existing datastore of the same name
         hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores"
         returned_data, info = self.getData(hx_url=hx_url, data=None, method='GET')
-        #if (re.match(r'2..',str(info['status']))):
-        #    self.module.fail_json(msg=f"We failed to connect to the API as expected.{info}")
+        if not re.match(r'2..',str(info['status'])):
+            self.module.fail_json(msg=f"We failed to connect to the API as expected.{info}")
         #for item in returned_data:
         for item in json.loads(returned_data.read()):
             if item['entityRef']['name'] == required_fields['name']:
