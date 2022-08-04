@@ -197,9 +197,7 @@ class hyperFlex():
         return response
             
 
-    def createDatastore(self, required_fields):        
-        ####### Six steps #######
-        # 1) Get authorization token
+    def createDatastore(self, required_fields):  
         self.getToken(required_fields['hx_connect_ip'])
         if not 'Authorization' in self.headers.keys():
             self.module.fail_json(msg="No key issues, and we cannot continue without it.")
@@ -215,6 +213,10 @@ class hyperFlex():
             )
         datastoreProperties.update({'name': required_fields['name']})
         result, info = self.getData(data=json.dumps(datastoreProperties),method='POST',hx_url=hx_url)
+
+        if not (200 <= info['status'] < 300):
+            self.module.fail_json(msg="Creation of Datastore did not work as expected. You may still have active machines using the datastore")
+
         return json.loads(result.read())
 
     def deleteDatastore(self,required_fields):
@@ -229,8 +231,8 @@ class hyperFlex():
         if (self.targetDatastore is not None):
             hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores/{self.targetDatastore['entityRef']['id']}"
             deleteResult, info=self.getData(hx_url=hx_url,method='DELETE',data=None)
-            #if ( not re.match(r'2..',str(info['status']))):
-            #    self.module.fail_json(msg="Delete of Datastore did not work as expected. You may still have active machines using the datastore")
+            if not (200 <= info['status'] < 300):
+                self.module.fail_json(msg="Delete of Datastore did not work as expected. You may still have active machines using the datastore")
             return info
         else:
             self.module.fail_json(msg="The the database was found, we did not receive enough details to delete the datastore - This is a bug")
@@ -246,7 +248,7 @@ class hyperFlex():
         # 2) Check for existing datastore of the same name
         hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores"
         returned_data, info = self.getData(hx_url=hx_url, data=None, method='GET')
-        if not re.match(r'2..',str(info['status'])):
+        if not (200 <= info['status'] < 300):
             self.module.fail_json(msg=f"We failed to connect to the API as expected.{info}")
         #for item in returned_data:
         for item in json.loads(returned_data.read()):
