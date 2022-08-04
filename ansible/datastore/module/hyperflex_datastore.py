@@ -229,8 +229,8 @@ class hyperFlex():
         if (self.targetDatastore is not None):
             hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores/{self.targetDatastore['entityRef']['id']}"
             deleteResult, info=self.getData(hx_url=hx_url,method='DELETE',data=None)
-            if ( not re.match(r'2..',str(info['status']))):
-                self.module.fail_json(msg="Delete of Datastore did not work as expected. You may still have active machines using the datastore")
+            #if ( not re.match(r'2..',str(info['status']))):
+            #    self.module.fail_json(msg="Delete of Datastore did not work as expected. You may still have active machines using the datastore")
             return info
         else:
             self.module.fail_json(msg="The the database was found, we did not receive enough details to delete the datastore - This is a bug")
@@ -246,8 +246,8 @@ class hyperFlex():
         # 2) Check for existing datastore of the same name
         hx_url = f"https://{required_fields['hx_connect_ip']}/rest/datastores"
         returned_data, info = self.getData(hx_url=hx_url, data=None, method='GET')
-        if (re.match(r'2..',str(info['status']))):
-            self.module.fail_json(msg=f"We failed to connect to the API as expected.{info}")
+        #if (re.match(r'2..',str(info['status']))):
+        #    self.module.fail_json(msg=f"We failed to connect to the API as expected.{info}")
         #for item in returned_data:
         for item in json.loads(returned_data.read()):
             if item['entityRef']['name'] == required_fields['name']:
